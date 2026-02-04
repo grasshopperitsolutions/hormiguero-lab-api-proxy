@@ -37,12 +37,7 @@ export default async function handler(req, res) {
       limit: 20,
       includePaths: ["convocatorias"],
       excludePaths: ["login", "admin", "usuario", "register"],
-      generateMarkdown: true,
-      onlyMainContent: false,
-      waitFor: 2000,
-      timeout: 30000,
       allowExternalLinks: false,
-      screenshot: false,
     };
 
     // Merge with client-provided options
@@ -55,20 +50,17 @@ export default async function handler(req, res) {
     console.log(`📝 Options:`, finalOptions);
 
     // Call Firecrawl crawl endpoint
-    const crawlResponse = await fetch(
-      "https://api.firecrawl.dev/v1/crawl",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: url,
-          ...finalOptions,
-        }),
+    const crawlResponse = await fetch("https://api.firecrawl.dev/v1/crawl", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        url: url,
+        ...finalOptions,
+      }),
+    });
 
     const crawlData = await crawlResponse.json();
 
@@ -95,8 +87,8 @@ export default async function handler(req, res) {
     // Extract markdown from all pages
     const pagesScraped = crawlData.data;
     const markdownArray = pagesScraped
-      .filter(page => page.markdown)
-      .map(page => `[URL: ${page.url}]\n${page.markdown}`);
+      .filter((page) => page.markdown)
+      .map((page) => `[URL: ${page.url}]\n${page.markdown}`);
 
     const combinedMarkdown = markdownArray.join("\n\n---PAGE BREAK---\n\n");
 
@@ -110,7 +102,6 @@ export default async function handler(req, res) {
       markdown: combinedMarkdown,
       credits: crawlData.credits || null,
     });
-
   } catch (error) {
     console.error("Crawl processing error:", error);
     res.status(500).json({
