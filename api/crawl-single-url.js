@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { url, crawlerOptions } = req.body;
+    const { url, crawlerOptions, scrapeOptions } = req.body;
 
     // Validate input
     if (!url || typeof url !== "string") {
@@ -31,26 +31,37 @@ export default async function handler(req, res) {
       });
     }
 
-    // Default crawler options (can be overridden by client)
-    const defaultOptions = {
-      maxDepth: 2,
+    // Default crawler options (v2 format)
+    const defaultCrawlOptions = {
+      maxDiscoveryDepth: 2, // Changed from maxDepth
       limit: 20,
-      includePaths: ["convocatorias"],
+      includePaths: ["convocatorias"], // v2 uses camelCase
       excludePaths: ["login", "admin", "usuario", "register"],
       allowExternalLinks: false,
     };
 
+    // Default scrape options (v2 format)
+    const defaultScrapeOptions = {
+      formats: ["markdown"], // v2 requires formats array
+    };
+
     // Merge with client-provided options
-    const finalOptions = {
-      ...defaultOptions,
+    const finalCrawlOptions = {
+      ...defaultCrawlOptions,
       ...(crawlerOptions || {}),
     };
 
-    console.log(`🕷️ Starting crawl for: ${url}`);
-    console.log(`📝 Options:`, finalOptions);
+    const finalScrapeOptions = {
+      ...defaultScrapeOptions,
+      ...(scrapeOptions || {}),
+    };
 
-    // Call Firecrawl crawl endpoint
-    const crawlResponse = await fetch("https://api.firecrawl.dev/v1/crawl", {
+    console.log(`🕷️ Starting crawl for: ${url}`);
+    console.log(`📝 Crawl Options:`, finalCrawlOptions);
+    console.log(`📝 Scrape Options:`, finalScrapeOptions);
+
+    // Call Firecrawl v2 crawl endpoint
+    const crawlResponse = await fetch("https://api.firecrawl.dev/v2/crawl", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY}`,
@@ -58,7 +69,8 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         url: url,
-        ...finalOptions,
+        ...finalCrawlOptions,
+        scrapeOptions: finalScrapeOptions, // Separate scrape options in v2
       }),
     });
 
@@ -68,6 +80,15 @@ export default async function handler(req, res) {
       console.error(`❌ Firecrawl crawl failed:`, crawlData);
       return res.status(crawlResponse.status).json({
         error: "Firecrawl crawl API error",
+        details: crawlData,
+      });
+    }
+
+    // v2 returns job data differently - check for success field
+    if (crawlData.success === false) {
+      console.error(`❌ Firecrawl crawl failed:`, crawlData);
+      return res.status(400).json({
+        error: "Firecrawl crawl failed",
         details: crawlData,
       });
     }
@@ -100,7 +121,7 @@ export default async function handler(req, res) {
       pagesScraped: pagesScraped.length,
       data: crawlData.data,
       markdown: combinedMarkdown,
-      credits: crawlData.credits || null,
+      credits: crawlData.creditsUsed || null, // v2 uses creditsUsed
     });
   } catch (error) {
     console.error("Crawl processing error:", error);
