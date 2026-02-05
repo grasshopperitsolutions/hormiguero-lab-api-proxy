@@ -1,5 +1,5 @@
+// api/crawl-single-url.js
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader(
     "Access-Control-Allow-Origin",
     "https://grasshoppersolutions.online",
@@ -22,30 +22,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { url, crawlerOptions, scrapeOptions } = req.body;
+    const { url, urls, crawlerOptions, scrapeOptions } = req.body || {};
 
-    // Validate input
-    if (!url || typeof url !== "string") {
+    const urlList =
+      Array.isArray(urls) && urls.length > 0 ? urls : url ? [url] : [];
+
+    if (urlList.length === 0) {
       return res.status(400).json({
-        error: "Missing or invalid 'url' in request body",
+        error: "Provide either 'url' (string) or 'urls' (array of strings)",
       });
     }
 
-    // Default crawler options (v2 format)
     const defaultCrawlOptions = {
-      maxDiscoveryDepth: 2, // Changed from maxDepth
+      maxDiscoveryDepth: 2,
       limit: 20,
-      includePaths: ["convocatorias"], // v2 uses camelCase
+      includePaths: ["convocatorias"],
       excludePaths: ["login", "admin", "usuario", "register"],
       allowExternalLinks: false,
     };
 
-    // Default scrape options (v2 format)
     const defaultScrapeOptions = {
-      formats: ["markdown"], // v2 requires formats array
+      formats: ["markdown"],
     };
 
-    // Merge with client-provided options
     const finalCrawlOptions = {
       ...defaultCrawlOptions,
       ...(crawlerOptions || {}),
@@ -56,11 +55,67 @@ export default async function handler(req, res) {
       ...(scrapeOptions || {}),
     };
 
-    console.log(`🕷️ Starting crawl for: ${url}`);
-    console.log(`📝 Crawl Options:`, finalCrawlOptions);
-    console.log(`📝 Scrape Options:`, finalScrapeOptions);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 28000);
 
-    // Call Firecrawl v2 crawl endpoint
+    try {
+      const crawlPromises = urlList.map((singleUrl) =>
+        crawlOneUrl(
+          singleUrl,
+          finalCrawlOptions,
+          finalScrapeOptions,
+          controller,
+        ),
+      );
+
+      const results = await Promise.all(crawlPromises);
+      clearTimeout(timeout);
+
+      // If caller passed a single url, keep backward‑compatible shape
+      if (url && !urls) {
+        const first = results[0];
+        return res.status(200).json(first);
+      }
+
+      // If caller passed urls[], return batch
+      return res.status(200).json({
+        success: true,
+        count: results.length,
+        results,
+      });
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e.name === "AbortError") {
+        return res.status(504).json({
+          error: "Timeout",
+          message: "Firecrawl batch took too long.",
+        });
+      }
+      throw e;
+    }
+  } catch (error) {
+    console.error("Crawl processing error:", error);
+    return res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+}
+
+/**
+ * Crawl a single URL via Firecrawl and normalize the result
+ * @param {string} singleUrl
+ * @param {object} crawlOptions
+ * @param {object} scrapeOptions
+ * @param {AbortController} controller
+ * @returns {Promise<{url, success, markdown, pagesScraped, credits?, error?}>}
+ */
+async function crawlOneUrl(singleUrl, crawlOptions, scrapeOptions, controller) {
+  try {
+    console.log(`🕷️ Starting crawl for: ${singleUrl}`);
+    console.log(`📝 Crawl Options:`, crawlOptions);
+    console.log(`📝 Scrape Options:`, scrapeOptions);
+
     const crawlResponse = await fetch("https://api.firecrawl.dev/v2/crawl", {
       method: "POST",
       headers: {
@@ -68,44 +123,36 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        url: url,
-        ...finalCrawlOptions,
-        scrapeOptions: finalScrapeOptions, // Separate scrape options in v2
+        url: singleUrl,
+        ...crawlOptions,
+        scrapeOptions,
       }),
+      signal: controller.signal,
     });
 
     const crawlData = await crawlResponse.json();
 
-    if (!crawlResponse.ok) {
-      console.error(`❌ Firecrawl crawl failed:`, crawlData);
-      return res.status(crawlResponse.status).json({
-        error: "Firecrawl crawl API error",
-        details: crawlData,
-      });
-    }
-
-    // v2 returns job data differently - check for success field
-    if (crawlData.success === false) {
-      console.error(`❌ Firecrawl crawl failed:`, crawlData);
-      return res.status(400).json({
-        error: "Firecrawl crawl failed",
-        details: crawlData,
-      });
-    }
-
-    // Check if data is present
-    if (!crawlData.data || !Array.isArray(crawlData.data)) {
-      console.warn(`⚠️ No data returned for ${url}`);
-      return res.status(200).json({
-        success: true,
-        url: url,
-        pagesScraped: 0,
-        data: [],
+    if (!crawlResponse.ok || crawlData.success === false) {
+      console.error(`❌ Firecrawl crawl failed for ${singleUrl}:`, crawlData);
+      return {
+        url: singleUrl,
+        success: false,
         markdown: "",
-      });
+        pagesScraped: 0,
+        error: crawlData,
+      };
     }
 
-    // Extract markdown from all pages
+    if (!crawlData.data || !Array.isArray(crawlData.data)) {
+      console.warn(`⚠️ No data returned for ${singleUrl}`);
+      return {
+        url: singleUrl,
+        success: true,
+        markdown: "",
+        pagesScraped: 0,
+      };
+    }
+
     const pagesScraped = crawlData.data;
     const markdownArray = pagesScraped
       .filter((page) => page.markdown)
@@ -113,21 +160,25 @@ export default async function handler(req, res) {
 
     const combinedMarkdown = markdownArray.join("\n\n---PAGE BREAK---\n\n");
 
-    console.log(`✅ Crawl completed for ${url}: ${pagesScraped.length} pages`);
+    console.log(
+      `✅ Crawl completed for ${singleUrl}: ${pagesScraped.length} pages`,
+    );
 
-    return res.status(200).json({
+    return {
+      url: singleUrl,
       success: true,
-      url: url,
-      pagesScraped: pagesScraped.length,
-      data: crawlData.data,
       markdown: combinedMarkdown,
-      credits: crawlData.creditsUsed || null, // v2 uses creditsUsed
-    });
-  } catch (error) {
-    console.error("Crawl processing error:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      message: error.message,
-    });
+      pagesScraped: pagesScraped.length,
+      credits: crawlData.creditsUsed || null,
+    };
+  } catch (err) {
+    console.error("Firecrawl fetch error for", singleUrl, err);
+    return {
+      url: singleUrl,
+      success: false,
+      markdown: "",
+      pagesScraped: 0,
+      error: err.message,
+    };
   }
 }
