@@ -22,8 +22,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { markdownBatch, model = "llama-3.1-sonar-large-128k-online" } =
-      req.body || {};
+    const { markdownBatch } = req.body || {};
 
     if (!Array.isArray(markdownBatch) || markdownBatch.length === 0) {
       return res.status(400).json({
@@ -34,7 +33,7 @@ export default async function handler(req, res) {
 
     const batchContext = markdownBatch
       .map((item, index) => {
-        const safeMarkdown = (item.markdown || "").slice(0, 15000);
+        const safeMarkdown = item.markdown || "";
         return `
 === FUENTE ${index + 1}: ${item.url} ===
 
@@ -80,9 +79,10 @@ INSTRUCCIONES:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: "sonar", // or "sonar-pro"
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 12000,
+        disable_search: true, // ✅ prevents any web search
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
