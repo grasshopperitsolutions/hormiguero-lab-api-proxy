@@ -98,7 +98,7 @@ INSTRUCCIONES:
 
     const rawContent = data.choices?.[0]?.message?.content || "[]";
 
-    let convocatorias = [];
+    const convocatorias = [];
     try {
       const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
       const jsonText = jsonMatch ? jsonMatch[0] : rawContent;
