@@ -3,7 +3,6 @@ import { db } from "./_middleware.js";
 import admin from "firebase-admin";
 
 export default async function handler(req, res) {
-  // CORS setup
   res.setHeader(
     "Access-Control-Allow-Origin",
     process.env.ALLOWED_ORIGIN || "https://grasshoppersolutions.online",
@@ -25,34 +24,63 @@ export default async function handler(req, res) {
 
       const batch = db.batch();
       const timestamp = admin.firestore.FieldValue.serverTimestamp();
+      let newCount = 0;
+      let updateCount = 0;
 
-      convocatorias.forEach((item) => {
-        const docRef = db.collection("convocatorias").doc();
-        batch.set(docRef, {
-          ...item,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        });
-      });
+      for (const item of convocatorias) {
+        if (!item.enlace) continue; // Skip if no URL
+
+        // Create a hash or sanitized version of URL as document ID
+        const docId = Buffer.from(item.enlace)
+          .toString("base64")
+          .replace(/[/+=]/g, "_")
+          .substring(0, 100); // Firestore doc ID limit
+
+        const docRef = db.collection("convocatorias").doc(docId);
+        const docSnap = await docRef.get();
+
+        if (docSnap.exists) {
+          // Update existing document
+          batch.update(docRef, {
+            ...item,
+            updatedAt: timestamp,
+          });
+          updateCount++;
+        } else {
+          // Create new document
+          batch.set(docRef, {
+            ...item,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          newCount++;
+        }
+      }
 
       await batch.commit();
 
       return res.status(200).json({
         success: true,
-        count: convocatorias.length,
+        total: convocatorias.length,
+        new: newCount,
+        updated: updateCount,
       });
     }
 
     if (req.method === "GET") {
-      const { estado, limit = 25 } = req.query; // Changed default to 25
+      const { estado = "abierta", limit } = req.query;
 
-      let query = db
-        .collection("convocatorias")
-        .orderBy("createdAt", "desc")
-        .limit(parseInt(limit));
+      // Start with base query
+      let query = db.collection("convocatorias").orderBy("createdAt", "desc");
 
+      // Filter by estado if provided
       if (estado) {
         query = query.where("estado", "==", estado);
+      }
+
+      // Apply limit if provided, otherwise get all
+      if (limit) {
+        query = query.limit(parseInt(limit));
       }
 
       const snapshot = await query.get();
