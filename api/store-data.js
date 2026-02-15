@@ -1,5 +1,6 @@
 // api/store-data.js
 import { db } from "./_middleware.js";
+import admin from "firebase-admin";
 
 export default async function handler(req, res) {
   // CORS setup
@@ -16,10 +17,9 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === "POST") {
-      // Store scraped data
       const { convocatorias } = req.body;
 
-      if (!Array.isArray(convocatorias)) {
+      if (!Array.isArray(convocatorias) || convocatorias.length === 0) {
         return res.status(400).json({ error: "Invalid data format" });
       }
 
@@ -44,8 +44,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "GET") {
-      // Retrieve data for your web app
-      const { estado, limit = 100 } = req.query;
+      const { estado, limit = 25 } = req.query; // Changed default to 25
 
       let query = db
         .collection("convocatorias")

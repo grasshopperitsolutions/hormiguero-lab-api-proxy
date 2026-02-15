@@ -1,4 +1,5 @@
 // api/ask-ai.js
+
 export default async function handler(req, res) {
   res.setHeader(
     "Access-Control-Allow-Origin",
@@ -36,9 +37,7 @@ export default async function handler(req, res) {
         const safeMarkdown = item.markdown || "";
         return `
 === FUENTE ${index + 1}: ${item.url} ===
-
 ${safeMarkdown}
-
 === FIN FUENTE ${index + 1} ===`;
       })
       .join("\n\n");
@@ -48,13 +47,15 @@ ${safeMarkdown}
 IMPORTANTE: Responde ÚNICAMENTE con un array JSON válido. No incluyas texto explicativo antes o después del JSON.
 
 Cada convocatoria debe tener esta estructura exacta:
+
 {
   "titulo": "Título completo de la convocatoria",
   "entidad": "Nombre de la entidad que convoca",
-  "descripcion": "Descripción detallada (mínimo 100 caracteres)",
+  "descripcion": "Descripción detallada",
   "fechaCierre": "YYYY-MM-DD o null si no hay fecha",
+  "fechaPublicacion": "YYYY-MM-DD o null si no hay fecha",
   "enlace": "URL completa de la convocatoria",
-  "monto": "Monto en COP como string o null",
+  "monto": "Monto total o Recursos disponibles, o null si no se especifica",
   "requisitos": "Requisitos principales resumidos",
   "estado": "abierta o cerrada",
   "categoria": "Categoría de la convocatoria",
@@ -79,10 +80,10 @@ INSTRUCCIONES:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "sonar", // or "sonar-pro"
+        model: "sonar",
         temperature: 0.2,
         max_tokens: 12000,
-        disable_search: true, // ✅ prevents any web search
+        disable_search: true,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -97,12 +98,13 @@ INSTRUCCIONES:
     }
 
     const rawContent = data.choices?.[0]?.message?.content || "[]";
+    let convocatorias = [];
 
-    const convocatorias = [];
     try {
       const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
       const jsonText = jsonMatch ? jsonMatch[0] : rawContent;
       convocatorias = JSON.parse(jsonText);
+
       if (!Array.isArray(convocatorias)) {
         convocatorias = [];
       }
@@ -111,6 +113,27 @@ INSTRUCCIONES:
       convocatorias = [];
     }
 
+    // ✅ ASYNC STORAGE: Fire-and-forget pattern
+    if (convocatorias.length > 0) {
+      // Don't await - let it run in background
+      fetch(
+        `${process.env.API_BASE_URL || "https://hormiguero-lab-api-proxy.vercel.app"}/api/store-data`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ convocatorias }),
+        },
+      )
+        .then((storeRes) => storeRes.json())
+        .then((storeData) => {
+          console.log(`✅ Stored ${storeData.count} convocatorias in Firebase`);
+        })
+        .catch((err) => {
+          console.error("⚠️ Storage failed (non-blocking):", err.message);
+        });
+    }
+
+    // Return immediately without waiting for storage
     return res.status(200).json({ convocatorias, raw: data });
   } catch (error) {
     console.error("Proxy error:", error);
