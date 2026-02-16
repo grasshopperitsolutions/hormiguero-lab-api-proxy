@@ -32,116 +32,175 @@ export default async function handler(req, res) {
       const timestamp = admin.firestore.FieldValue.serverTimestamp();
       let newCount = 0;
       let updateCount = 0;
-      let skippedCount = 0;
+      let noTitleCount = 0;
 
-      // ✅ OPTIMIZED: Batch all reads first, then write
-      const docRefs = [];
-      const docIds = [];
-
-      for (const item of convocatorias) {
-        if (!item.enlace) {
-          console.warn(
-            `⚠️ [${requestId}] Skipping item without enlace:`,
-            item.titulo,
-          );
-          skippedCount++;
-          continue;
-        }
-
-        // Create a hash or sanitized version of URL as document ID
-        const docId = Buffer.from(item.enlace)
-          .toString("base64")
-          .replace(/[/+=]/g, "_")
-          .substring(0, 100);
-
-        docIds.push(docId);
-        docRefs.push(db.collection("convocatorias").doc(docId));
-      }
-
-      console.log(
-        `📖 [${requestId}] Reading ${docRefs.length} documents to check existence...`,
-      );
-
-      // Batch read all documents at once (much faster!)
-      const docSnaps = await db.getAll(...docRefs);
-
-      console.log(`✍️ [${requestId}] Preparing write batch...`);
-
-      // Now create the batch write operations
       const batch = db.batch();
 
-      convocatorias.forEach((item, index) => {
-        if (!item.enlace) return; // Already skipped
+      for (let i = 0; i < convocatorias.length; i++) {
+        const item = convocatorias[i];
 
-        const docRef = docRefs[index - skippedCount];
-        const docSnap = docSnaps[index - skippedCount];
+        const hasTitulo = item.titulo && item.titulo.trim() !== "";
 
-        if (docSnap && docSnap.exists) {
-          // Update existing document
-          batch.update(docRef, {
-            ...item,
-            updatedAt: timestamp,
-          });
-          updateCount++;
-          console.log(
-            `🔄 [${requestId}] Updating: ${item.titulo?.substring(0, 50)}...`,
+        // ✅ No titulo = Create new entry (no deduplication possible)
+        if (!hasTitulo) {
+          console.warn(
+            `⚠️ [${requestId}] Item ${i + 1} has no titulo - creating without deduplication check`,
           );
-        } else {
-          // Create new document
-          batch.set(docRef, {
-            ...item,
+
+          const newDocRef = db.collection("convocatorias").doc();
+
+          batch.set(newDocRef, {
+            titulo: null,
+            entidad: item.entidad || null,
+            descripcion: item.descripcion || null,
+            fechaCierre: item.fechaCierre || null,
+            fechaPublicacion: item.fechaPublicacion || null,
+            enlace: item.enlace || null,
+            monto: item.monto || null,
+            requisitos: item.requisitos || null,
+            estado: item.estado || "abierta",
+            categoria: item.categoria || null,
+            fuente: item.fuente || null,
             createdAt: timestamp,
             updatedAt: timestamp,
           });
-          newCount++;
-          console.log(
-            `➕ [${requestId}] Creating: ${item.titulo?.substring(0, 50)}...`,
-          );
-        }
-      });
 
-      console.log(`💾 [${requestId}] Committing batch write...`);
-      await batch.commit();
+          newCount++;
+          noTitleCount++;
+          console.log(
+            `   ➕ [${requestId}] Creating without titulo [${newDocRef.id}]`,
+          );
+          continue;
+        }
+
+        console.log(
+          `🔍 [${requestId}] Item ${i + 1}/${convocatorias.length}: ${item.titulo.substring(0, 50)}...`,
+        );
+
+        try {
+          // ✅ ONLY CHECK BY TITULO
+          console.log(
+            `   📝 [${requestId}] Checking duplicate by titulo: "${item.titulo.trim().substring(0, 60)}..."`,
+          );
+
+          const existingQuery = await db
+            .collection("convocatorias")
+            .where("titulo", "==", item.titulo.trim())
+            .limit(1)
+            .get();
+
+          // Normalize all fields (keep URL even if duplicate)
+          const normalizedItem = {
+            titulo: item.titulo.trim(),
+            entidad: item.entidad || null,
+            descripcion: item.descripcion || null,
+            fechaCierre: item.fechaCierre || null,
+            fechaPublicacion: item.fechaPublicacion || null,
+            enlace: item.enlace || null, // Keep URL as-is
+            monto: item.monto || null,
+            requisitos: item.requisitos || null,
+            estado: item.estado || "abierta",
+            categoria: item.categoria || null,
+            fuente: item.fuente || null,
+          };
+
+          if (!existingQuery.empty) {
+            // ✅ UPDATE: Duplicate titulo found
+            const existingDoc = existingQuery.docs[0];
+
+            batch.update(existingDoc.ref, {
+              ...normalizedItem,
+              updatedAt: timestamp,
+            });
+
+            updateCount++;
+            console.log(
+              `   🔄 [${requestId}] Updating [${existingDoc.id}]: "${item.titulo.substring(0, 40)}..."`,
+            );
+          } else {
+            // ✅ CREATE: New titulo
+            const newDocRef = db.collection("convocatorias").doc();
+
+            batch.set(newDocRef, {
+              ...normalizedItem,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+
+            newCount++;
+            console.log(
+              `   ➕ [${requestId}] Creating [${newDocRef.id}]: "${item.titulo.substring(0, 40)}..."`,
+            );
+          }
+        } catch (queryError) {
+          console.error(
+            `❌ [${requestId}] Error processing item ${i + 1}:`,
+            queryError.message,
+          );
+          // Continue processing other items
+        }
+      }
 
       console.log(
-        `✅ [${requestId}] Storage complete: ${newCount} new, ${updateCount} updated, ${skippedCount} skipped`,
+        `💾 [${requestId}] Committing batch write (${newCount + updateCount} operations)...`,
       );
 
-      return res.status(200).json({
+      try {
+        await batch.commit();
+        console.log(`✅ [${requestId}] Batch commit successful!`);
+      } catch (commitError) {
+        console.error(`❌ [${requestId}] Batch commit failed:`, commitError);
+        throw commitError;
+      }
+
+      const summary = {
         success: true,
         total: convocatorias.length,
         new: newCount,
         updated: updateCount,
-        skipped: skippedCount,
+        withoutTitle: noTitleCount,
+        stored: newCount + updateCount,
         requestId,
-      });
+      };
+
+      console.log(`✅ [${requestId}] Storage complete:`, summary);
+
+      return res.status(200).json(summary);
     }
 
     if (req.method === "GET") {
-      const { estado, limit } = req.query;
+      const { estado, limit, includeIncomplete } = req.query;
 
       console.log(
         `📖 [${requestId}] GET request - estado: ${estado || "all"}, limit: ${limit || "none"}`,
       );
 
-      // Start with base query
       let query = db.collection("convocatorias").orderBy("createdAt", "desc");
 
-      // Filter by estado if provided
       if (estado) {
         query = query.where("estado", "==", estado);
       }
 
-      // Apply limit if provided, otherwise get all
       if (limit) {
         query = query.limit(parseInt(limit));
       }
 
       const snapshot = await query.get();
-      const data = snapshot.docs.map((doc) => ({
+      let data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
+
+      if (includeIncomplete !== "true") {
+        const originalCount = data.length;
+        data = data.filter((item) => item.titulo && item.descripcion);
+        const filteredCount = originalCount - data.length;
+        if (filteredCount > 0) {
+          console.log(
+            `🔍 [${requestId}] Filtered out ${filteredCount} incomplete items`,
+          );
+        }
+      }
 
       console.log(
         `✅ [${requestId}] Retrieved ${data.length} convocatorias from Firestore`,
@@ -161,6 +220,7 @@ export default async function handler(req, res) {
     return res.status(500).json({
       error: "Database operation failed",
       message: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
       requestId,
     });
   }

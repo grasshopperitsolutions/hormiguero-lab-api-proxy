@@ -61,8 +61,8 @@ Cada convocatoria debe tener esta estructura exacta:
   "titulo": "Título completo de la convocatoria",
   "entidad": "Nombre de la entidad que convoca",
   "descripcion": "Descripción detallada",
-  "fechaCierre": "YYYY-MM-DD o null si no hay fecha",
-  "fechaPublicacion": "YYYY-MM-DD o null si no hay fecha",
+  "fechaCierre": "Fecha de termino o cierre. Formato YYYY-MM-DD o null si no hay fecha",
+  "fechaPublicacion": "Fecha de publicacion o inicio o apertura. Formato YYYY-MM-DD o null si no hay fecha",
   "enlace": "URL completa de la convocatoria",
   "monto": "Monto total de Recursos disponibles o financiamento, o null si no se especifica",
   "requisitos": "Requisitos principales resumidos",
@@ -79,7 +79,7 @@ INSTRUCCIONES:
 1. Extrae TODAS las convocatorias encontradas en las ${markdownBatch.length} fuentes
 2. Para cada convocatoria, completa todos los campos posibles
 3. Si no encuentras un dato, usa null
-4. Determina el estado basándote en fechas de cierre (si la fecha ya pasó, estado="cerrada")
+4. Determina el estado basándote en fechas de cierre o publicacion/apertura (si la fecha ya pasó, estado="cerrada")
 5. Responde SOLO con el array JSON, sin texto adicional.`;
 
     console.log(`🤖 [${requestId}] Calling Perplexity API...`);
