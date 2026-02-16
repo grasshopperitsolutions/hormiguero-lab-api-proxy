@@ -91,7 +91,7 @@ INSTRUCCIONES:
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "sonar",
+        model: "sonar-pro",
         temperature: 0.2,
         max_tokens: 12000,
         disable_search: true,
