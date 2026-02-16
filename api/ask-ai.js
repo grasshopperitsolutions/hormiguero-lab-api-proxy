@@ -55,7 +55,7 @@ Cada convocatoria debe tener esta estructura exacta:
   "fechaCierre": "YYYY-MM-DD o null si no hay fecha",
   "fechaPublicacion": "YYYY-MM-DD o null si no hay fecha",
   "enlace": "URL completa de la convocatoria",
-  "monto": "Monto total o Recursos disponibles, o null si no se especifica",
+  "monto": "Monto total de Recursos disponibles o financiamento, o null si no se especifica",
   "requisitos": "Requisitos principales resumidos",
   "estado": "abierta o cerrada",
   "categoria": "Categoría de la convocatoria",

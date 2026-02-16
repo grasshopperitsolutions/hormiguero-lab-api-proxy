@@ -52,8 +52,8 @@ export default async function handler(req, res) {
             name,
             phone: phone || null,
             tier: "free",
-            requestCount: 0,
-            maxRequests: 50,
+            // requestCount: 0,
+            // maxRequests: 50,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             lastReset: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -92,8 +92,8 @@ export default async function handler(req, res) {
             email: decodedToken.email,
             name: decodedToken.name || userData?.name,
             tier: userData?.tier || "free",
-            requestCount: userData?.requestCount || 0,
-            maxRequests: userData?.maxRequests || 50,
+            // requestCount: userData?.requestCount || 0,
+            // maxRequests: userData?.maxRequests || 50,
           },
         });
 
