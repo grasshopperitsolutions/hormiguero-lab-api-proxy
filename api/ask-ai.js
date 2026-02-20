@@ -136,7 +136,7 @@ INSTRUCCIONES:
       `✅ [${requestId}] Extracted ${convocatorias.length} convocatorias`,
     );
 
-    // ✅ ASYNC STORAGE: Fire-and-forget pattern with improved logging
+    // ASYNC STORAGE: Fire-and-forget pattern with improved logging
     if (convocatorias.length > 0) {
       console.log(
         `💾 [${requestId}] Initiating async storage of ${convocatorias.length} items...`,

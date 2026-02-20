@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
         const hasTitulo = item.titulo && item.titulo.trim() !== "";
 
-        // ✅ No titulo = Create new entry (no deduplication possible)
+        // No titulo = Create new entry (no deduplication possible)
         if (!hasTitulo) {
           console.warn(
             `⚠️ [${requestId}] Item ${i + 1} has no titulo - creating without deduplication check`,
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         );
 
         try {
-          // ✅ ONLY CHECK BY TITULO
+          // ONLY CHECK BY TITULO
           console.log(
             `   📝 [${requestId}] Checking duplicate by titulo: "${item.titulo.trim().substring(0, 60)}..."`,
           );
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
           };
 
           if (!existingQuery.empty) {
-            // ✅ UPDATE: Duplicate titulo found
+            // UPDATE: Duplicate titulo found
             const existingDoc = existingQuery.docs[0];
 
             batch.update(existingDoc.ref, {
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
               `   🔄 [${requestId}] Updating [${existingDoc.id}]: "${item.titulo.substring(0, 40)}..."`,
             );
           } else {
-            // ✅ CREATE: New titulo
+            // CREATE: New titulo
             const newDocRef = db.collection("convocatorias").doc();
 
             batch.set(newDocRef, {

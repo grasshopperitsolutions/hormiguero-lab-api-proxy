@@ -33,10 +33,10 @@ export default async function handler(req, res) {
     const defaultScrapeOptions = {
       formats: ["markdown"],
 
-      // ✅ ONLY MAIN CONTENT (removes nav, header, footer, sidebars)
+      // ONLY MAIN CONTENT (removes nav, header, footer, sidebars)
       onlyMainContent: true,
 
-      // ✅ REMOVE UNWANTED ELEMENTS
+      // REMOVE UNWANTED ELEMENTS
       excludeTags: [
         "select",
         "nav",
@@ -51,11 +51,11 @@ export default async function handler(req, res) {
         "button",
       ],
 
-      // ✅ WAIT FOR JS IF NEEDED
+      // WAIT FOR JS IF NEEDED
       waitFor: 2000, // 2 seconds
 
-      // ✅ TIMEOUT PER URL
-      timeout: 20000, // 15 seconds max per page
+      // TIMEOUT PER URL
+      timeout: 15000, // 15 seconds max per page
     };
 
     const finalScrapeOptions = {
