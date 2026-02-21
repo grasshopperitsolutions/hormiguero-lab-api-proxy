@@ -51,6 +51,36 @@ ${safeMarkdown}
       })
       .join("\n\n");
 
+    const CATEGORIES = [
+      "Call for proposals",
+      "Grants / Subvenciones",
+      "Donaciones",
+      "Technical assistance",
+      "Request for Application (RFA)",
+      "Portafolio de estímulos",
+      "Subvenciones",
+      "Cofinanciación",
+      "Capital semilla",
+      "Banco de proyectos",
+      "Fomento",
+      "Investigación",
+      "Sistema General de Regalías",
+      "Licitación pública",
+      "Mínima cuantía",
+      "Selección abreviada",
+      "Concurso de méritos",
+      "Términos de referencia (TDR)",
+      "Pliego de condiciones",
+      "Gestión del conocimiento",
+      "Ambiente",
+      "Energía",
+      "Paz",
+      "Sociedad",
+      "Salud",
+      "Minería",
+      "Suelos",
+    ];
+
     const systemPrompt = `Eres un experto en análisis de convocatorias públicas en Colombia. Tu tarea es extraer información estructurada sobre convocatorias (calls for proposals, becas, empleos, financiamiento, etc.) de contenido web en markdown.
 
 IMPORTANTE: Responde ÚNICAMENTE con un array JSON válido. No incluyas texto explicativo antes o después del JSON.
@@ -67,9 +97,12 @@ Cada convocatoria debe tener esta estructura exacta:
   "monto": "Monto total de Recursos disponibles o financiamento, o null si no se especifica",
   "requisitos": "Requisitos principales resumidos",
   "estado": "abierta o cerrada",
-  "categoria": "Categoría de la convocatoria",
+  "categoria": "Categoría de la convocatoria (DEBE ser una de las categorías de la lista proporcionada)",
   "fuente": "Nombre de la entidad fuente"
-}`;
+}
+
+LISTA DE CATEGORÍAS VÁLIDAS (debes asignar UNA de estas categorías a cada convocatoria basándote en su naturaleza):
+${CATEGORIES.map((cat) => `- ${cat}`).join("\n")}`;
 
     const userPrompt = `Analiza el siguiente contenido de ${markdownBatch.length} sitios web y extrae TODAS las convocatorias que encuentres.
 
@@ -80,7 +113,8 @@ INSTRUCCIONES:
 2. Para cada convocatoria, completa todos los campos posibles
 3. Si no encuentras un dato, usa null
 4. Determina el estado basándote en fechas de cierre o publicacion/apertura (si la fecha ya pasó, estado="cerrada")
-5. Responde SOLO con el array JSON, sin texto adicional.`;
+5. IMPORTANTE: Para el campo "categoria", asigna OBLIGATORIAMENTE una de las categorías de la lista válida proporcionada, eligiendo la que mejor se adapte a la naturaleza de la convocatoria
+6. Responde SOLO con el array JSON, sin texto adicional.`;
 
     console.log(`🤖 [${requestId}] Calling Perplexity API...`);
 
