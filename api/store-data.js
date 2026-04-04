@@ -5,12 +5,20 @@ import admin from "firebase-admin";
 export default async function handler(req, res) {
   const requestId = req.headers["x-request-id"] || `STORE-${Date.now()}`;
 
-  res.setHeader(
-    "Access-Control-Allow-Origin",
+  // Allowed origins
+  const allowedOrigins = [
     process.env.ALLOWED_ORIGIN || "https://grasshoppersolutions.online",
-  );
+    "https://hormiguerolab.lat"
+  ].filter(Boolean);
+  
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+  
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Request-ID");
+  res.setHeader("Vary", "Origin");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
