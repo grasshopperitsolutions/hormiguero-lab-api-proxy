@@ -1,10 +1,9 @@
 // api/crawl-batch-urls.js
 export default async function handler(req, res) {
   // Allowed origins
-  const allowedOrigins = [
-    "https://grasshoppersolutions.online",
-    "https://hormiguerolab.lat"
-  ];
+  const allowedOrigins = process.env.ALLOWED_ORIGIN 
+    ? process.env.ALLOWED_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+    : ["https://grasshoppersolutions.online", "https://hormiguerolab.lat"];
   
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {

@@ -6,10 +6,9 @@ export default async function handler(req, res) {
   const requestId = req.headers["x-request-id"] || `STORE-${Date.now()}`;
 
   // Allowed origins
-  const allowedOrigins = [
-    process.env.ALLOWED_ORIGIN || "https://grasshoppersolutions.online",
-    "https://hormiguerolab.lat"
-  ].filter(Boolean);
+  const allowedOrigins = process.env.ALLOWED_ORIGIN 
+    ? process.env.ALLOWED_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+    : ["https://grasshoppersolutions.online", "https://hormiguerolab.lat"];
   
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
